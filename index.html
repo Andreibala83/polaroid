@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polaroid Print Generator – Live Layout Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="app">
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Client-side - EXIF safe - Cover crop</p>
+      <h1>Polaroid Print Generator</h1>
+    </div>
+    <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle color theme">Light</button>
+  </header>
+
+  <section class="panel controls" aria-label="Layout and photo controls">
+    <div class="controls-grid">
+      <label class="control">
+        <span>Layout</span>
+        <select id="templateSelect"></select>
+      </label>
+      <label class="control">
+        <span>Print quality</span>
+        <select id="qualitySelect">
+          <option value="600" selected>High (600 DPI)</option>
+          <option value="300">Standard (300 DPI)</option>
+        </select>
+      </label>
+      <label class="file-picker">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <span class="picker-title">Add photos batch</span>
+        <span class="picker-sub">Assign owner after selecting</span>
+      </label>
+      <div class="actions">
+        <button id="manageTemplatesBtn" type="button">✎ Layouts</button>
+        <button id="previewBtn" type="button" disabled>Preview</button>
+        <button id="clearBtn" type="button">Clear All</button>
+      </div>
+    </div>
+    <div class="status-row">
+      <span id="countText">No images selected</span>
+      <span id="status" class="status" role="status" aria-live="polite">Waiting for batches.</span>
+    </div>
+    <p id="layoutInfo" class="muted"></p>
+  </section>
+
+  <section class="panel captions-panel" aria-labelledby="captionsHeading">
+    <div class="panel-heading">
+      <h2 id="captionsHeading">Captions</h2>
+      <p class="muted">Text printed in the white margin below a polaroid. Pick the font, position, which polaroid and which pages.</p>
+    </div>
+    <div id="captionsList" class="captions-list"></div>
+    <div class="actions caption-actions"><button id="addCaptionBtn" type="button" class="secondary">+ Add caption</button></div>
+  </section>
+
+  <section class="panel batches-panel" aria-labelledby="batchesHeading">
+    <div class="panel-heading">
+      <h2 id="batchesHeading">Batches</h2>
+      <p class="muted">Owner + count. Remove to re-order or fix mistakes.</p>
+    </div>
+    <div id="batchesList" class="batches-list empty" aria-live="polite">No batches yet.</div>
+  </section>
+</main>
+
+<div id="previewModal" class="modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card preview-card">
+    <header class="modal-header"><h3 id="previewTitle">Preview</h3>
+      <div class="preview-toolbar">
+        <label for="previewZoom">Zoom</label>
+        <input type="range" id="previewZoom" aria-label="Preview zoom" min="50" max="400" value="100">
+        <span id="previewZoomValue">100%</span>
+      </div>
+      <button class="icon-btn" id="previewCloseBtn" type="button" aria-label="Close preview">✕</button></header>
+    <div class="modal-body">
+      <div id="previewContainer" class="preview-container" aria-live="polite"><p class="preview-empty">No pages to show.</p></div>
+    </div>
+    <footer class="modal-footer">
+      <div class="modal-footer-left">
+        <button id="modalPrintBtn" class="primary" type="button" title="Print with the paper size and orientation of this layout">🖨 Print</button>
+        <button id="modalDownloadBtn" class="secondary" type="button">Download PDF</button>
+        <button id="modalPsdBtn" class="secondary" type="button">Download PSD</button>
+        <button id="modalDocxBtn" class="secondary" type="button">Download DOCX</button>
+      </div>
+      <button id="previewFooterCloseBtn" class="secondary" type="button">Close</button>
+    </footer>
+  </div>
+</div>
+
+<div id="ownerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ownerTitle">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div><p class="modal-kicker">New batch</p><h3 id="ownerTitle">Owner name</h3></div>
+      <button class="icon-btn" id="ownerCloseBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <p id="modalCountText" class="muted"></p>
+    <label class="control stacked"><span>Owner</span><input type="text" id="ownerInput" placeholder="e.g. ALEX" /></label>
+    <div class="modal-actions"><button id="modalCancelBtn" class="secondary" type="button">Cancel</button><button id="modalConfirmBtn" class="primary" type="button">Confirm</button></div>
+  </div>
+</div>
+
+<div id="templateManagerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="layoutEditorTitle">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card" style="max-width: 1160px;">
+    <div class="modal-header">
+      <h3 id="layoutEditorTitle">Layout Editor</h3>
+      <div class="header-actions">
+        <button id="undoBtn" class="secondary" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>↶ Undo</button>
+        <button id="redoBtn" class="secondary" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>↷ Redo</button>
+      <button class="icon-btn" id="closeTemplateBtn" type="button" aria-label="Close layout editor">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="template-editor-layout">
+        <div class="template-left">
+          <div class="editor-tabs" role="tablist" aria-label="Layout editor steps">
+            <button id="tabSizeBtn" class="tab-btn" type="button" role="tab" aria-controls="sizeTabPanel">1 · Polaroid Size</button>
+            <button id="tabArrangeBtn" class="tab-btn" type="button" role="tab" aria-controls="arrangeTabPanel">2 · Arrange Layout</button>
+          </div>
+
+          <div id="sizeTabPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabSizeBtn">
+            <span id="sizeLockIndicator" class="lock-indicator"></span>
+            <div class="arrange-canvas-wrap size-canvas-wrap">
+              <div id="sizeSheet"></div>
+            </div>
+            <p class="arrange-hint">Drag the blue corner to resize the polaroid · drag the pink box to move the photo · drag the pink dot to resize the photo · hold Alt for a second to lock/unlock the size, then move to step 2 to arrange copies of it.</p>
+          </div>
+
+          <div id="arrangeTabPanel" class="tab-panel tab-hidden" role="tabpanel" aria-labelledby="tabArrangeBtn">
+            <div class="arrange-toolbar">
+              <button id="addFrameBtn" class="primary" type="button">+ Add Polaroid</button>
+              <button id="duplicateFrameBtn" class="secondary" type="button">Duplicate</button>
+              <button id="deleteFrameBtn" class="secondary" type="button">Delete</button>
+              <button id="autoArrangeBtn" class="secondary" type="button">Auto-Arrange</button>
+              <button id="clearFramesBtn" class="secondary" type="button">Clear All</button>
+            </div>
+            <div class="arrange-canvas-wrap">
+              <div id="arrangeSheet"></div>
+            </div>
+            <span id="frameCountText"></span>
+            <p class="arrange-hint">All polaroids share the size you set in step 1 — this page is only for placing and rotating them. Drag a polaroid to move it · drag the green dot to rotate it (hold Shift to snap to 15°).</p>
+          </div>
+        </div>
+
+        <div class="template-right">
+          <div class="sliders-group">
+            <div class="template-name-input">
+              <input type="text" id="templateNameInput" aria-label="Layout name" placeholder="Layout name (e.g. Instax Mini 3x3)" style="flex: 1;">
+              <button id="saveTemplateBtn" class="primary" style="padding: 8px 12px;">💾 Save</button>
+            </div>
+            <button id="newTemplateBtn" class="secondary" type="button">+ New Blank Layout</button>
+            <label class="snap-toggle"><input type="checkbox" id="centerSnapToggle" checked><span>Center snap guides <small>(hold Ctrl to bypass)</small></span></label>
+          </div>
+
+          <div id="sizeRightPanel">
+            <div class="sliders-group">
+              <div class="control-row"><label>Units:</label><div class="unit-toggle"><button id="unitInBtn" type="button">Inches</button><button id="unitMmBtn" type="button">Millimeters</button></div></div>
+            </div>
+            <div class="sliders-group">
+              <p class="muted" style="margin:0;">Fine-tune numerically (optional — dragging on the canvas works too):</p>
+              <div class="control-row"><label for="outerW">Outer Width (<span class="unit-abbr">in</span>):</label><input type="number" id="outerW" step="0.01"></div>
+              <div class="control-row"><label for="outerH">Outer Height (<span class="unit-abbr">in</span>):</label><input type="number" id="outerH" step="0.01"></div>
+              <hr>
+              <div class="control-row"><label for="innerW">Photo Width (<span class="unit-abbr">in</span>):</label><input type="number" id="innerW" step="0.01"></div>
+              <div class="control-row"><label for="innerH">Photo Height (<span class="unit-abbr">in</span>):</label><input type="number" id="innerH" step="0.01"></div>
+              <div class="control-row"><label for="offsetX">Photo Offset X (<span class="unit-abbr">in</span>):</label><input type="number" id="offsetX" step="0.01"></div>
+              <div class="control-row"><label for="offsetY">Photo Offset Y (<span class="unit-abbr">in</span>):</label><input type="number" id="offsetY" step="0.01"></div>
+            </div>
+          </div>
+
+          <div id="arrangeRightPanel" class="tab-hidden">
+            <div class="sliders-group">
+              <div class="paper-row-group">
+                <select id="paperSelectEditor" aria-label="Paper size"></select>
+                <button id="removePaperBtn" class="secondary" type="button" style="display:none;" aria-label="Delete custom paper" title="Delete custom paper">🗑</button>
+              </div>
+              <div class="control-row"><label>Orientation:</label><div class="unit-toggle"><button id="orientationPortraitBtn" type="button">Portrait</button><button id="orientationLandscapeBtn" type="button">Landscape</button></div></div>
+              <p id="customPaperUnitHint" class="muted" style="margin:0;font-size:12px;"></p>
+              <div class="custom-paper-form">
+                <input type="text" id="customPaperName" aria-label="Custom paper name" placeholder="Custom paper name">
+                <input type="number" id="customPaperW" aria-label="Custom paper width" placeholder="Width" step="0.1">
+                <input type="number" id="customPaperH" aria-label="Custom paper height" placeholder="Height" step="0.1">
+                <button id="savePaperBtn" class="secondary" type="button">Save Paper</button>
+              </div>
+            </div>
+            <div class="sliders-group">
+              <div class="control-row"><label for="frameRotation">Rotation (° selected):</label><input type="number" id="frameRotation" step="1"></div>
+            </div>
+          </div>
+
+          <div class="custom-templates-list">
+            <h4>My Layouts</h4>
+            <div id="customTemplateList" class="template-list">
+              <div class="muted" style="text-align:center;">No custom layouts yet.<br>Arrange frames and click Save.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="closeTemplateManagerBtn" class="secondary" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="printRoot" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/docx@8.2.4/build/index.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/ag-psd@29.1.0/dist/bundle.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
